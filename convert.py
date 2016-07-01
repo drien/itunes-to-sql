@@ -19,11 +19,14 @@ def main():
     library = plistlib.load(args.library)
 
     tracks_table, tracks = process_tracks(library)
+    playlists_table, playlist_itms_table, playlists = process_playlists(library)
 
     conn = sqlite3.connect('itunes.db')
     conn.execute(tracks_table)
+    conn.execute(playlists_table)
+    conn.execute(playlist_itms_table)
 
-    for query in tracks:
+    for query in tracks + playlists:
         conn.execute(query[0], list(query[1]))
 
     conn.commit()
@@ -42,14 +45,57 @@ def process_tracks(library):
 
         all_keys = all_keys.union(set(track_keys))
 
-        inserts.append(("INSERT INTO tracks ({0}) VALUES ({1})".format(
-            ', '.join(track_keys), ', '.join(['?'] * len(track_values))),
-            [value for value in track_values]
-        ))
+        inserts.append(get_parameterized('tracks', track_keys, track_values))
 
     all_keys = list(map(slugify, all_keys))
 
-    return "CREATE TABLE tracks ({0});".format(', '.join(all_keys)), inserts
+    return "CREATE TABLE tracks ({0})".format(', '.join(all_keys)), inserts
+
+
+def process_playlists(library):
+    all_keys = set()
+    inserts = []
+
+    for playlist in library['Playlists']:
+        try:
+            track_ids = playlist['Playlist Items']
+            del playlist['Playlist Items']
+        except KeyError as e:
+            track_ids = []
+
+        playlist_keys = list(map(slugify, playlist.keys()))
+        playlist_values = playlist.values()
+
+        all_keys = all_keys.union(set(playlist_keys))
+
+        inserts.append(get_parameterized(
+            'playlists', playlist_keys, playlist_values)
+        )
+
+        for track in track_ids:
+            inserts.append(get_parameterized(
+                'playlist_items',
+                ['playlist_id', 'track_id'],
+                [playlist['Playlist ID'], track['Track ID']]
+            ))
+
+    playlists_table = "CREATE TABLE playlists ({0})".format(
+        ', '.join(all_keys)
+    )
+    items_table = 'CREATE TABLE playlist_items (playlist_id, track_id)'
+
+    return playlists_table, items_table, inserts
+
+
+def get_parameterized(table, keys, values):
+    return (
+        "INSERT INTO {} ({}) VALUES ({})".format(
+            table,
+            ', '.join(map(str, keys)),
+            ', '.join(['?'] * len(values))
+        ),
+        [value for value in values]
+    )
 
 
 def slugify(name):
