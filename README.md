@@ -1,6 +1,8 @@
 # iTunes to SQL
 Simple command line converter to turn iTunes Library.xml files into SQLite databases.
 
+See the queries directory for some sample queries to run against the resulting database.
+
 Requires Python 3.
 
 ## Usage
