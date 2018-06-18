@@ -21,7 +21,7 @@ def main():
     tracks_table, tracks = process_tracks(library)
     playlists_table, playlist_itms_table, playlists = process_playlists(library)
 
-    conn = sqlite3.connect('itunes.db')
+    conn = sqlite3.connect(args.db)
     conn.execute(tracks_table)
     conn.execute(playlists_table)
     conn.execute(playlist_itms_table)
