@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
 import argparse
+import os
 import plistlib
 import sqlite3
+import sys
 
 
 def main():
@@ -16,17 +18,25 @@ def main():
                         default='itunes.db')
 
     args = parser.parse_args()
+
+    if os.path.exists(args.db):
+        response = input(f'{args.db} already exists. Do you want to overwrite? (y/n): ')
+        if response.lower() != 'y':
+            sys.exit()
+        else:
+            os.remove(args.db)
+
     library = plistlib.load(args.library)
 
-    tracks_table, tracks = process_tracks(library)
-    playlists_table, playlist_itms_table, playlists = process_playlists(library)
+    create_tracks_tbl, insert_tracks = process_tracks(library)
+    create_playlists_tbl, create_playlist_items_tbl, insert_playlists = process_playlists(library)
 
     conn = sqlite3.connect(args.db)
-    conn.execute(tracks_table)
-    conn.execute(playlists_table)
-    conn.execute(playlist_itms_table)
+    conn.execute(create_tracks_tbl)
+    conn.execute(create_playlists_tbl)
+    conn.execute(create_playlist_items_tbl)
 
-    for query in tracks + playlists:
+    for query in insert_tracks + insert_playlists:
         conn.execute(query[0], list(query[1]))
 
     conn.commit()
@@ -46,8 +56,6 @@ def process_tracks(library):
         all_keys = all_keys.union(set(track_keys))
 
         inserts.append(get_parameterized('tracks', track_keys, track_values))
-
-    all_keys = list(map(slugify, all_keys))
 
     return "CREATE TABLE tracks ({0})".format(', '.join(all_keys)), inserts
 
@@ -92,7 +100,7 @@ def get_parameterized(table, keys, values):
         "INSERT INTO {} ({}) VALUES ({})".format(
             table,
             ', '.join(map(str, keys)),
-            ', '.join(['?'] * len(values))
+            ', '.join('?' * len(values))
         ),
         [value for value in values]
     )
